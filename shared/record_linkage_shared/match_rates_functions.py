@@ -10,6 +10,7 @@ inputs and outputs.
 import os
 import csv
 import psycopg2
+import pandas as pd
 
 from record_linkage_shared import match_functions
 
@@ -142,6 +143,19 @@ def find_total_ids(database_information, table, id):
     return total
 
 
+def find_total_ids_csv(filepath, id, dtypes):
+    '''
+    Finds the number of ids originally in a csv
+    Takes in the csv, id and dtypes in case the source ID needs to
+    be read in as a specific type
+
+    Returns int
+    '''
+    indv_ids = pd.read_csv(filepath, usecols=[id], dtype=dtypes)
+    total = indv_ids.nunique().values[0]
+    return total
+
+
 def calc_metrics_for_threshold(output_dir, table_a, table_b, threshold, matchtype, total):
     '''
     Function to call all functions that calculate metrics for a threshold
@@ -159,7 +173,7 @@ def calc_metrics_for_threshold(output_dir, table_a, table_b, threshold, matchtyp
     print(f"*** CHECKING {threshold.upper()} ***")
     # get our final matches filename
     final_matches_filename = match_functions.get_latest_file_in_dir(
-                                                    output_dir + "postprocessing/",
+                                                    os.path.join(output_dir, "postprocessing/"),
                                                     table_a, threshold,
                                                     table_b)
     # get dict of results and all ids seen
@@ -319,7 +333,7 @@ def calc_metrics_for_bigmatch(bm_name, matchtype, output_dir, table_a, table_b, 
     print("*** CHECKING BIG MATCH ***")
     results = f"/wd2/match/record-linkage-v0/reference_file/{bm_name}_bigmatch_postprocessed_xwalk.csv"
     # get name of our raw matches file
-    matchfile = get_latest_file_in_dir(output_dir, table_a, '', table_b)
+    matchfile = match_functions.get_latest_file_in_dir(output_dir, table_a, '', table_b)
     # get results from Big Match and our raw matches
     bm_final_matches, bm_ids = get_bigmatch_final_matches(results, matchtype)
     print(f"Total final matches: {len(bm_final_matches)}")

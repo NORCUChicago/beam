@@ -68,10 +68,11 @@ for ds_key in ["df_a", "df_b"]:
 
     print(f"PREPROCESSING FOR: {ds_config['name'].upper()}")
     database_config = config["database_information"]
-    conn, schema, _ = connect_to_db(database_config)
-    admin_role = schema + "admin"
-    tablename = schema + "." + ds_config["name"]
-    cursor = conn.cursor()
+    if database_config:
+        conn, schema, _ = connect_to_db(database_config)
+        admin_role = schema + "admin"
+        tablename = schema + "." + ds_config["name"]
+        cursor = conn.cursor()
 
     # Read in any previous data in database
     if ds_config.get("combine_prev_tbl"):
@@ -87,7 +88,7 @@ for ds_key in ["df_a", "df_b"]:
         for script in os.listdir(project_repo):
             if ds_config['name'] in script and "preprocess" in script:
                 print(f"\tRunning: {script}")
-                subprocess.call(['python3', script], cwd=project_repo)
+                subprocess.call(['python', script], cwd=project_repo)
         for file in os.listdir(project_repo):
             if f"preprocess_{ds_config['name'].lower()}" in file.lower() and "csv" in file:
                 print(f"\tReading in results: {file}")
@@ -110,31 +111,36 @@ for ds_key in ["df_a", "df_b"]:
         data['idx'] = data.index
         data.drop(columns="index", inplace=True)
         # Make command to create table
-        print("Creating table {}".format(tablename))
-        create = 'SET ROLE {admin_role};\n'\
-                 + 'CREATE TABLE IF NOT EXISTS {target_table} (\n'\
-                 + '    {} TEXT,\n' * len(data.columns)
-        create = create[:-2] + '\n);'  # remove comma on last column
-        create = create.format(admin_role=admin_role,
-                               target_table=tablename,
-                               *data.columns)
-        with conn.cursor() as cursor:
-            cursor.execute(create)
-            # Truncate the table
-            cursor.execute('TRUNCATE {target_table}'.format(
-                           target_table=tablename))
-            with StringIO() as buffer:
-                # Add the data to the table
-                data.to_csv(buffer, sep=',', na_rep=None, header=False,
-                            index=False, quoting=csv.QUOTE_NONNUMERIC)
-                buffer.seek(0)  # move cursor back to start
+        if database_config:
+            print("Creating table {}".format(tablename))
+            create = 'SET ROLE {admin_role};\n'\
+                    + 'CREATE TABLE IF NOT EXISTS {target_table} (\n'\
+                    + '    {} TEXT,\n' * len(data.columns)
+            create = create[:-2] + '\n);'  # remove comma on last column
+            create = create.format(admin_role=admin_role,
+                                target_table=tablename,
+                                *data.columns)
+            with conn.cursor() as cursor:
+                cursor.execute(create)
+                # Truncate the table
+                cursor.execute('TRUNCATE {target_table}'.format(
+                            target_table=tablename))
+                with StringIO() as buffer:
+                    # Add the data to the table
+                    data.to_csv(buffer, sep=',', na_rep=None, header=False,
+                                index=False, quoting=csv.QUOTE_NONNUMERIC)
+                    buffer.seek(0)  # move cursor back to start
 
-                copy_cmd = 'COPY {} FROM STDIN CSV;'.format(tablename)
-                print(copy_cmd)
-                cursor.copy_expert(copy_cmd, buffer)
-                print('Rows inserted: {:,}'.format(cursor.rowcount))
+                    copy_cmd = 'COPY {} FROM STDIN CSV;'.format(tablename)
+                    print(copy_cmd)
+                    cursor.copy_expert(copy_cmd, buffer)
+                    print('Rows inserted: {:,}'.format(cursor.rowcount))
+            conn.commit()
+            conn.close()
+        else:
+            print('Shape of dataset:', data.shape)
         # Save csv to input directory
-        save_path = f"{config['input_dir']}preprocess_{ds_config['name']}.csv"
+        save_path = os.path.join(config['input_dir'], 
+                                 f"preprocess_{ds_config['name']}.csv")
         data.to_csv(save_path, index=False)
-        conn.commit()
-        conn.close()
+

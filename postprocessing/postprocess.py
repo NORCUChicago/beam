@@ -51,6 +51,7 @@ import csv
 import json
 import psycopg2
 import os
+import pandas as pd
 import record_linkage_shared.union_find
 
 
@@ -174,16 +175,21 @@ def mtom_or_dedup_matching(filename, matchtype, strictness=None, config=None):
 
         indv_id_a = df_a_info['vars']["indv_id"]
         table_a = df_a_info["name"]
+        if config["database_information"]:
+            schema = config['database_information']["schema"]
+            dbname = config["database_information"]["dbname"]
+            host = config["database_information"]["host"]
 
-        schema = config['database_information']["schema"]
-        dbname = config["database_information"]["dbname"]
-        host = config["database_information"]["host"]
-
-        conn = psycopg2.connect(host=host, dbname=dbname)
-        cursor = conn.cursor()
-        cmd = f'''SELECT distinct {indv_id_a} from {schema}.{table_a}'''
-        cursor.execute(cmd)
-        all_ids = cursor.fetchall()
+            conn = psycopg2.connect(host=host, dbname=dbname)
+            cursor = conn.cursor()
+            cmd = f'''SELECT distinct {indv_id_a} from {schema}.{table_a}'''
+            cursor.execute(cmd)
+            all_ids = cursor.fetchall()
+        else:
+            df_a = pd.read_csv(df_a_info["filepath"],
+                               usecols=[indv_id_a], dtype=df_a_info["dtype"])
+            all_ids = df_a[indv_id_a].value_counts().reset_index()
+            all_ids = all_ids.values.tolist()
 
         for id_a in all_ids:
             unionfind.add_item_dedup(rowid, id_a[0])

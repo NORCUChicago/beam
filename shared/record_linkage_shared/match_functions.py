@@ -126,7 +126,8 @@ class CompareMinitial(BaseCompareFeature):
 ### Functions for running match -----------------------------------------------
 
 def run_match_parallelized(df_a, df_b, vars_a, vars_b, name_a, name_b,
-    config, past_join_cond_str, counts, table_a, table_b, conn, schema):
+    config, past_join_cond_str, counts, table_a=None, table_b=None, 
+    conn=None, schema=None):
     '''
     Run the matching algorithm (including blocking) for each pass number,
     using parallelization to divide the work. Takes in the two dataframes,
@@ -172,8 +173,11 @@ def run_match_parallelized(df_a, df_b, vars_a, vars_b, name_a, name_b,
         comps=comps,
         config=config
         )
-    cursor = conn.cursor()
-    cursor.execute(f'SET ROLE {schema}admin;')
+    if conn:
+        cursor = conn.cursor()
+        cursor.execute(f'SET ROLE {schema}admin;')
+    else:
+        cursor = None
 
     output_vars = ["indv_id_a", "indv_id_b", "idx_a", "idx_b",
                    "passnum", "match_strict", "match_moderate",
@@ -194,51 +198,68 @@ def run_match_parallelized(df_a, df_b, vars_a, vars_b, name_a, name_b,
                                                 config["blocks_by_pass"],
                                                 passnum,
                                                 vars_a, vars_b,
-                                                schema,
                                                 name_a, name_b,
                                                 past_join_cond_str,
-                                                cursor,
-                                                table_a, table_b)
+                                                table_a, table_b,
+                                                df_a, df_b,
+                                                schema, cursor)
         cand_table = f"candidates_{name_a}_{name_b}_p{passnum}"
         print(f'Looking up {cand_table}...')
-        # Check if this blocking pass is skipped
-        cursor.execute(
-            f'''SELECT EXISTS (SELECT * FROM information_schema.tables
-            WHERE table_schema = '{schema}' AND table_name = '{cand_table}');''')
-        if not cursor.fetchone()[0]: # Table not found
-            print(f'No candidate table for pass {passnum}, skipping')
-            continue
-        conn.commit()
-
-        # Read in match pairs and complete similarity checks
-        with conn.cursor(f"passes_cursor_{passnum}") as cur:
-            cmd = f"SELECT indv_id_a, indv_id_b, idx_a, idx_b FROM {schema}.{cand_table}"
-            cur.execute(cmd)
-            # Read in block by chunks, running similiarity check once threshold hit
-            while chunk := cur.fetchmany(size=chunk_sizes[str(passnum)]):
-                if not chunk:
-                    break
-                candidates = pd.DataFrame(chunk,
-                                          columns=['indv_id_a', 'indv_id_b',
-                                                   'idx_a', 'idx_b'])
-                all_cands.append([candidates, passnum])
-                if len(all_cands) == num_processes * 2:
-                    dfs = process_pool.starmap(run_match, tuple(all_cands))
-                    dfs = pd.concat(dfs, ignore_index=True)
-                    counts = calculate_pass_match_counts(dfs, counts)
-                    calculate_weights(dfs, tot_pass_cnt)
-                    # Save out sorted dataframe to temp file
-                    dfs = dfs.sort_values("weight", ascending=False)
-                    dfs.reindex(columns=output_vars).to_csv(f"temp_match_{i}.csv",
-                                                            index=False)
-                    all_cands = []
-                    i += 1
-                    gc.collect()
-        # Drop candidates table for current pass once done using
-        cmd = f'''DROP TABLE IF EXISTS {schema}.{cand_table}'''
-        cursor.execute(cmd)
-        conn.commit()
-
+        if cursor:
+            # Check if this blocking pass is skipped
+            cursor.execute(
+                f'''SELECT EXISTS (SELECT * FROM information_schema.tables
+                WHERE table_schema = '{schema}' AND table_name = '{cand_table}');''')
+            if not cursor.fetchone()[0]: # Table not found
+                print(f'No candidate table for pass {passnum}, skipping')
+                continue
+            conn.commit()
+            # Read in match pairs and complete similarity checks
+            with conn.cursor(f"passes_cursor_{passnum}") as cur:
+                cmd = f"SELECT indv_id_a, indv_id_b, idx_a, idx_b FROM {schema}.{cand_table}"
+                cur.execute(cmd)
+                # Read in block by chunks, running similiarity check once threshold hit
+                while chunk := cur.fetchmany(size=chunk_sizes[str(passnum)]):
+                    if not chunk:
+                        break
+                    candidates = pd.DataFrame(chunk,
+                                            columns=['indv_id_a', 'indv_id_b',
+                                                    'idx_a', 'idx_b'])
+                    all_cands.append([candidates, passnum])
+                    if len(all_cands) == num_processes * 2:
+                        dfs = process_pool.starmap(run_match, tuple(all_cands))
+                        dfs = pd.concat(dfs, ignore_index=True)
+                        counts = calculate_pass_match_counts(dfs, counts)
+                        calculate_weights(dfs, tot_pass_cnt)
+                        # Save out sorted dataframe to temp file
+                        dfs = dfs.sort_values("weight", ascending=False)
+                        dfs.reindex(columns=output_vars).to_csv(f"temp_match_{i}.csv",
+                                                                index=False)
+                        all_cands = []
+                        i += 1
+                        gc.collect()
+            # Drop candidates table for current pass once done using
+            cmd = f'''DROP TABLE IF EXISTS {schema}.{cand_table}'''
+            cursor.execute(cmd)
+            conn.commit()
+        else:
+            if len(past_join_cond_str.get(passnum, 0)) != 0:
+                continue
+            candidates = past_join_cond_str[passnum].to_frame()
+            candidates["passnum"] = passnum
+            all_cands.append([candidates, passnum])
+            if len(all_cands) == num_processes * 2:
+                dfs = process_pool.starmap(run_match, tuple(all_cands))
+                dfs = pd.concat(dfs, ignore_index=True)
+                counts = calculate_pass_match_counts(dfs, counts)
+                calculate_weights(dfs, tot_pass_cnt)
+                # Save out sorted dataframe to temp file
+                dfs = dfs.sort_values("weight", ascending=False)
+                dfs.reindex(columns=output_vars).to_csv(f"temp_match_{i}.csv",
+                                                        index=False)
+                all_cands = []
+                i += 1
+                gc.collect()
     # Compute similarity check for any remaining candidates not yet processed
     if all_cands:
         dfs = process_pool.starmap(run_match, tuple(all_cands))
@@ -487,7 +508,7 @@ def load_data(ds_key, config):
     '''
     ds_config = config['data_param'][ds_key]
     dtypes = ds_config['dtype']
-    keep_cols = ds_config['vars'].values()
+    keep_cols = list(ds_config['vars'].values()) + ["idx"]
     tablename = ds_config["name"] # name of table in database
 
     if ds_config['filetype'] == 'fwf':
@@ -672,7 +693,8 @@ def print_match_count(counts, passnum=None):
     '''
     if passnum is None:
         p_mask = counts.passnum.notnull()
-        sums = counts[p_mask].fillna(0).groupby(["strictness"]).agg({'match': sum}).reset_index()
+        sums = counts[p_mask].fillna(0).groupby(["strictness"]
+                                                ).agg({'match': "sum"}).reset_index()
         print('=== All Passes ===')
     else:
         p_mask = counts.passnum == passnum
@@ -716,12 +738,14 @@ def save_output(name_a, name_b, config):
     path = "temp_match_*.csv"
 
     output_id = f'{name_a}_{name_b}_{date.today()}'
-    output_filepath = config['output_dir'] + \
-        f'match_results_with_pairwise_scores_{output_id}.csv'
+    output_filepath = os.path.join(config['output_dir'],
+        f'match_results_with_pairwise_scores_{output_id}.csv')
 
     chunks = []
+    open_files = []
     for filename in glob.glob(path):
         f_input = open(filename)
+        open_files.append(f_input)
         csv_input = csv.reader(f_input, delimiter=',', skipinitialspace=True)
         header = next(csv_input)
         chunks.append(csv_input)
@@ -732,6 +756,8 @@ def save_output(name_a, name_b, config):
         csv_output.writerows(heapq.merge(*chunks,
                                          key=lambda k: float(k[9]),
                                          reverse=True))
+    for file in open_files:
+        file.close()
     for file in glob.glob(path):
         print(file)
         os.remove(file)

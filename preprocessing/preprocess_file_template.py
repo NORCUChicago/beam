@@ -130,8 +130,8 @@ data = data.rename(raw_to_preprocessed_col_names, axis=1).fillna('')
 if "dob" in data:
     data['dob'] =  pd.to_datetime(data.dob, errors='coerce')
     data['byear'] = data['dob'].dt.strftime("%Y")
-    data['bmonth'] = data['dob'].dt.strftime("%-m").str.lstrip("0")
-    data['bday'] = data['dob'].dt.strftime('%-d').str.lstrip("0")
+    data['bmonth'] = data['dob'].dt.strftime("%m").str.lstrip("0")
+    data['bday'] = data['dob'].dt.strftime('%d').str.lstrip("0")
 
 # Assign row id (orig_id) based on year/file/row if needed
 if "source_id" not in data.columns:

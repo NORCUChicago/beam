@@ -39,6 +39,7 @@ Currently has not been updated with specific stats for M2M
 import argparse
 import json
 from record_linkage_shared.match_rates_functions import (find_total_ids,
+                                                         find_total_ids_csv,
                                                 calc_metrics_for_bigmatch,
                                                 calc_metrics_for_threshold,
                                                 compare_bm_ours_final_matches)
@@ -85,9 +86,17 @@ database_information = config['database_information']
 
 # Get amount of original ids for later calculations
 if matchtype == "12M":
-    total = find_total_ids(database_information, table_b, id_b)
+    if database_information:
+        total = find_total_ids(database_information, table_b, id_b)
+    else:
+        total = find_total_ids_csv(data_param["df_b"]["filepath"], id_b,
+                               data_param["df_b"]["dtype"])
 else:
-    total = find_total_ids(database_information, table_a, id_a)
+    if database_information:
+        total = find_total_ids(database_information, table_a, id_a)
+    else:
+        total = find_total_ids_csv(data_param["df_a"]["filepath"], id_a,
+                               data_param["df_a"]["dtype"])
 
 print(f"There were originally {total} ids\n")
 
