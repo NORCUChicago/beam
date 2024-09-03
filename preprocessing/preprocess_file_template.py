@@ -117,7 +117,7 @@ elif filetype == 'csv':
 elif filetype == 'excel':
     data = pd.read_excel(filename, usecols=raw_cols, dtype=str)
 else:
-    conn = psycopg2.connect(host=host, dbname=dbname)
+    conn = psycopg2.connect(host=host, dbname=database)
     select_cols_str = ','.join(raw_cols)
     cmd = f"""SELECT {select_cols_str} FROM {schema}.{table}"""
     data = pd.read_sql(cmd, conn)
