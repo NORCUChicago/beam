@@ -134,7 +134,7 @@ def pull_and_prep_data(strict_1, strict_2, config, name_a, name_b, results):
         if config["data_param"]["df_b"]["filetype"] == "db":
             tbl_name_b =config["data_param"]["df_b"]["db_args"]["tablename"]
         if config["data_param"]["df_b"]["filetype"] == "csv":
-            table_a = pd.read_csv(
+            table_b = pd.read_csv(
                 config["data_param"]["df_b"]['filepath'], 
                 dtype=str,
                 usecols=list(b_raw_cols_to_standard.keys()) + ['idx']
