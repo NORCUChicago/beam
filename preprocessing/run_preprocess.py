@@ -28,13 +28,11 @@ To use:
 
 '''
 import os
-import re
 import csv
 import json
 import argparse
 import shutil
 import pathlib
-import psycopg2
 import subprocess
 import pandas as pd
 from io import StringIO
@@ -106,8 +104,8 @@ for ds_key in ["df_a", "df_b"]:
     if all_files:
         # Combine all datasets
         data = pd.concat(all_files)
-        # Remove duplicates and add idx
-        data = data.drop_duplicates().reset_index()
+        # Remove empty rows, duplicates and add idx
+        data = data.dropna(how='all').drop_duplicates().reset_index()
         data['idx'] = data.index
         data.drop(columns="index", inplace=True)
         # Make command to create table

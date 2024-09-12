@@ -12,9 +12,7 @@ import gc
 import os
 import csv
 import glob
-import json
 import heapq
-import psutil
 import psycopg2
 import itertools
 import multiprocessing
@@ -25,7 +23,6 @@ from datetime import date
 from recordlinkage.compare import Exact, String, Numeric, Date
 from recordlinkage.base import BaseCompareFeature
 from functools import partial
-from sqlalchemy import create_engine
 
 from record_linkage_shared import accept
 from record_linkage_shared import block_functions

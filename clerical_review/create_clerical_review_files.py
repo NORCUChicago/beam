@@ -53,7 +53,6 @@ def get_sql_query(schema, name, idxes, name_a, columns):
                       name=name,
                       idxes="','".join(idxes))
 
-
 def limit_results(df, strict_1, strict_2, passes):
     '''
     Limits the results to keep only the 100 lowest scoring records of
@@ -110,27 +109,50 @@ def pull_and_prep_data(strict_1, strict_2, config, name_a, name_b, results):
     idxes_a = keep["idx_a"].to_list()
     idxes_b = keep["idx_b"].to_list()
 
-    # Connect to database and read in the datasets. Rename columns as needed.
-    conn, schema, _ = match_functions.connect_to_db(config["database_information"])
+    # Read in the datasets. Rename columns as needed.    
     vars_a = config["data_param"]["df_a"]["vars"]
+    a_raw_cols_to_standard = {v:k for k, v in vars_a.items() if k != "minitial"}
     tbl_name_a = name_a
     if config["data_param"]["df_a"]["filetype"] == "db":
-        tbl_name_a =config["data_param"]["df_a"]["db_args"]["tablename"]
+        tbl_name_a = config["data_param"]["df_a"]["db_args"]["tablename"]
+    if config["data_param"]["df_a"]["filetype"] == "csv":
+        table_a = pd.read_csv(
+            config["data_param"]["df_a"]['filepath'], 
+            dtype=str,
+            usecols=list(a_raw_cols_to_standard.keys()) + ['idx']
+            )
+    
     if name_b == "dedup":
         vars_b = vars_a
+        b_raw_cols_to_standard = a_raw_cols_to_standard
         tbl_name_b = tbl_name_a
+        table_b = table_a
     else:
         vars_b = config["data_param"]["df_b"]["vars"]
+        b_raw_cols_to_standard = {v:k for k, v in vars_b.items() if k != "minitial"}
         tbl_name_b = name_b
         if config["data_param"]["df_b"]["filetype"] == "db":
             tbl_name_b =config["data_param"]["df_b"]["db_args"]["tablename"]
+        if config["data_param"]["df_b"]["filetype"] == "csv":
+            table_b = pd.read_csv(
+                config["data_param"]["df_b"]['filepath'], 
+                dtype=str,
+                usecols=list(b_raw_cols_to_standard.keys()) + ['idx']
+                )
 
-    a_raw_cols_to_standard = {v:k for k, v in vars_a.items() if k != "minitial"}
-    b_raw_cols_to_standard = {v:k for k, v in vars_b.items() if k != "minitial"}
-    query_a = get_sql_query(schema, tbl_name_a, idxes_a, tbl_name_a, a_raw_cols_to_standard)
-    table_a = pd.read_sql(query_a, conn).rename(columns=a_raw_cols_to_standard)
-    query_b = get_sql_query(schema, tbl_name_b, idxes_b, tbl_name_a, b_raw_cols_to_standard)
-    table_b = pd.read_sql(query_b, conn).rename(columns=b_raw_cols_to_standard)
+    if config["database_information"]:
+        conn, schema, _ = match_functions.connect_to_db(config["database_information"])
+        query_a = get_sql_query(schema, tbl_name_a, idxes_a, tbl_name_a, a_raw_cols_to_standard)
+        table_a = pd.read_sql(query_a, conn)
+        query_b = get_sql_query(schema, tbl_name_b, idxes_b, tbl_name_a, b_raw_cols_to_standard)
+        table_b = pd.read_sql(query_b, conn)
+        conn.close()
+    else: # subset csv to selected indices
+        table_a = table_a[table_a.idx.isin(idxes_a)]
+        table_b = table_b[table_b.idx.isin(idxes_b)]
+
+    table_a = table_a.rename(columns=a_raw_cols_to_standard)
+    table_b = table_b.rename(columns=b_raw_cols_to_standard)
 
     # Merge match data to each dataset
     merge_a = pd.merge(keep, table_a, left_on="idx_a", right_on="idx"
@@ -150,7 +172,6 @@ def pull_and_prep_data(strict_1, strict_2, config, name_a, name_b, results):
     merge_dataset = merge_dataset[cols]
     merge_dataset["passnum"] = merge_dataset["passnum"].astype(float)
 
-    conn.close()
     return (merge_dataset, output_file)
 
 
