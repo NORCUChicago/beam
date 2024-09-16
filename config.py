@@ -32,10 +32,10 @@ import os
 import shutil
 
 # Directory of input data (i.e. where raw data are stored)
-input_dir = ''
+input_dir = r''
 
 # Directory to output data (i.e. where match results are saved)
-output_dir = ''
+output_dir = r''
 
 # A config.json file will be saved in the current working directory.
 # Additionally, a copy of this file will also be saved in input_dir.
@@ -211,7 +211,7 @@ df_b =  {
 
         # Path to the research project's repo, where preprocessing scripts are saved.
         # Enter the path from user's home directory (e.g. gitlab/analysis123/)
-        'project_repo': '',
+        'project_repo': r'',
         # If to combine with previously preprocessed data stored as a table in
         # IN THE SAME SCHEMA, include the table name as string in the list below.
         # Leave empty otherwise.
