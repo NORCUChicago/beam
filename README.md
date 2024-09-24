@@ -1,8 +1,10 @@
 # Beam
 
-Beam is a deterministic record linkage tool developed by the Chapin Hall ETL team for linking administrative data. The tool matches individuals across two datasets or deduplicates within one dataset using a set of personal identifying information (names, birthdate, ID, geography, etc.) and a set of rules to identify a set of unique individuals relevant to the research population.
+Beam is a deterministic record linkage tool for linking administrative data. The tool matches individuals across two datasets or deduplicates within one dataset using a set of personal identifying information (names, birthdate, ID, geography, etc.) and a set of rules to identify a set of unique individuals relevant to the research population.
 
 This tool is applicable for 1-to-1, 1-to-many, many-to-many matches and deduplications. Each link is performed under three confidence levels (strict, moderate, relaxed), which reflect the level of certainty of match results, each codified by a specific set of rules. This allows for sensitivity testing of research results based on the strictness of match logic. The rules used by the deterministic matching algorithm are based on background knowledge and extensive testing on IL and Chicago administrative data.
+
+Contact liu-aya@norc.org or sedovic-sabrina@norc.org for questions or support.
 
 ## Version
 
@@ -26,18 +28,44 @@ If you would like to define your own blocking strategy and/or set of rules for a
 Beam requires the following software on the secure server where matches are run:
 
 - python
-- Postgres
 - tmux or other tools for running background jobs on server to prevent hang
+
+Beam works with csv data as well as tables on Postgres databases. The Postgres database integration can be used for storing raw and preprocessed data, as well as using it as a scratch space for intemediary linkage steps. 
 
 ### Set up Git Repository
 
 Clone this Git repository on an secure server for sensitive data like personal identfiable information.
 
-Add the subdirectory `/shared` to your `.bashrc` file located in your home directory on the server. This directory contains code used by other modules in this repository and needs to be added to the user's `PYTHONPATH`. This can be done by adding the following line to `.bashrc`:
+Add the subdirectory `/shared` to your default `PYTHONPATH`. This directory contains code used by other modules in this repository. This step should be done differently based on your operating system:
 
-```export PYTHONPATH='<root_directory>/record-linkage/shared'```
+#### Linux
 
-where `<root_directory>` is the directory where this repository is stored.
+Add the following line to `.bashrc` in your home directory:
+
+```export PYTHONPATH='<root_directory>/beam_main/shared'```
+
+where `<root_directory>` is the directory where this repository is stored. Restart the terminal to activate.
+
+#### Windows
+
+The setup on Windows differs by the software you use to run the code. Here are setups for Visual Studio Code and Spyder:
+
+##### Visual Studio Code
+
+Open `settings.json`, add:
+
+```
+"terminal.integrated.env.windows": {
+        "PYTHONPATH":  '<root_directory>\\beam_main\\shared'
+    }
+```
+
+where `<root_directory>` is the directory where this repository is stored. Restart the terminal to activate.
+
+##### Spyder
+
+Choose "PYTHONPATH manager" from the menu (python > PYTHONPATH manager) and add the path `<root_directory>\\beam_main\\shared`.
+    
 
 ### Configure python Environment
 
@@ -86,7 +114,7 @@ Each of the following stage of the match can be run separately. See the scripts'
 
 To review pairwise matches that reflect the differences between strict, moderate, and relaxed thresholds, run the following line from the main directory:
 
-    `python3 clerical_review/create_clerical_review_files.py`
+    `python clerical_review/create_clerical_review_files.py`
 
 This script produces 3 text files, for the following threshold groups:
     - strict and moderate
@@ -108,8 +136,11 @@ identifying matches.
 - `run_match.py`: central workflow script to run a match
 - `config.py`: template for configuration file
 
-### `archive/`
-Archived code and configurations from prototyping.
+### `clerical_review/`
+Code for generating files used to review differences between thresholds.
+
+### `docs/`
+Expanded documentation for Beam.
 
 ### `match_rates/`
 Code for analyzing match results.
@@ -124,4 +155,4 @@ Code for postprocessing the match, generating ID crosswalks, and joining crosswa
 Code for preprocessing and importing data to Postgres.
 
 ### `shared/`
-Code for shared functions used by scripts
+Code for shared functions used by scripts.
