@@ -102,6 +102,9 @@ df_a =  {
             'indv_id': '',
             ### Comparison variables
             # ID that is shared with the other dataset (e.g. SSN, student ID)
+            # To add multiple common_ids, use "common_id" as the prefix for all, followed
+            # by whatever name wanted to differentiate the ids (e.g. common_id_ssn). 
+            # Ensure mapped name aligns between both df_a and df_b
             'common_id': '',
             # Name components
             'fname': '',
@@ -186,6 +189,9 @@ df_b =  {
             'indv_id': '',
             ### Comparison variables
             # ID that is shared with the other dataset (e.g. SSN, student ID)
+            # To add multiple common_ids, use "common_id" as the prefix for all, followed
+            # by whatever name wanted to differentiate the ids (e.g. common_id_ssn). 
+            # Ensure mapped name aligns between both df_a and df_b
             'common_id': '',
             # Name components
             'fname': '',

@@ -66,14 +66,15 @@ def accept_matches(df_match, passnum, config):
 
     # create filters for high-similarity common_id so that it will skip
     # if the match does not compare common_id similarities
-    if 'common_id' in df_match.columns:
-        masks['common_id_null'] = df_match.common_id == -1
-        masks['id_high_mask'] = df_match.common_id >= thresholds['id_high_score']
-        masks['id_review_mask'] = df_match.common_id >= id_review_score
-    else:
-        masks['common_id_null'] = True
-        masks['id_high_mask'] = False
-        masks['id_review_mask'] = False
+    common_id_fields = [x for x in df_match.columns if "common_id" in x]
+    masks['common_id_null'] = len(common_id_fields) == 0
+    masks['id_high_mask'] = False
+    masks['id_review_mask'] = False
+
+    for common_id in common_id_fields:
+        masks['common_id_null'] = masks['common_id_null'] | (df_match[common_id] == -1)
+        masks['id_high_mask'] = masks['id_high_mask'] | (df_match[common_id] >= thresholds['id_high_score'])
+        masks['id_review_mask'] = masks['id_review_mask'] | (df_match[common_id] >= id_review_score)
 
     # mname filters
     if 'minitial' in df_match.columns:
