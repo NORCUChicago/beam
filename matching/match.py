@@ -24,6 +24,7 @@ import json
 import time
 import gc
 import os
+import re
 import datetime
 import multiprocessing
 import pandas as pd
@@ -40,7 +41,7 @@ if __name__ == "__main__":
 
     matchtype = config['matchtype']
 
-    ### Load preprocessed data and match parameters ###  --------------------------
+    ### Load preprocessed data and match parameters ###  -----------------------
     print(f'Start time: {datetime.datetime.now()}')
     last_time = time.time()
 
@@ -72,7 +73,7 @@ if __name__ == "__main__":
 
     match_functions.print_runtime(last_time)
 
-    ### Initialize variables and database connection ###  -------------------------
+    ### Initialize variables and database connection ###  ----------------------
     # Dataframe to store index pairs' similarity scores
     df_sim = pd.DataFrame(columns=['indv_id_a', 'indv_id_b', 'idx_a', 'idx_b'])
 
@@ -99,7 +100,7 @@ if __name__ == "__main__":
     # Dataframe containing counts of matched pairs in each pass by strictness level
     counts = pd.DataFrame(columns=["passnum", "strictness", "match"])
 
-    # Pre-match: find pairs sharing ground truth IDs ### --------------------------
+    # Pre-match: find pairs sharing ground truth IDs ### -----------------------
     last_time = time.time()
     if config["ground_truth_ids"]:
         # Cursor used to create, read and drop ground truth ids candidates tables
@@ -127,15 +128,18 @@ if __name__ == "__main__":
             matches["weight"] = 10 ** (len(config["blocks_by_pass"]) + 1)
             df_sim = pd.concat([df_sim, matches], axis=0)
 
-        # Calculate the counts of each ground truth ID matches by strictness level
+        # Calculate counts of each ground truth ID matches by strictness level
         counts = match_functions.calculate_pass_match_counts(df_sim, counts)
 
         # Store results to temporary file and create new empty dataframe
         df_sim.to_csv("temp_match_gid.csv", index=False)
-        df_sim = pd.DataFrame(columns=['indv_id_a', 'indv_id_b', 'idx_a', 'idx_b'])
+        df_sim = pd.DataFrame(columns=['indv_id_a', 
+                                       'indv_id_b', 
+                                       'idx_a', 
+                                       'idx_b'])
         match_functions.print_runtime(last_time)
 
-    # Start Matching ### ----------------------------------------------------------
+    # Start Matching ### -------------------------------------------------------
     # Compare similarities and accept pairs as matches for each pass
     print("Starting matching: ", datetime.datetime.now())
     blank_df = pd.DataFrame(columns=['idx_a', 'idx_b'])
@@ -168,16 +172,17 @@ if __name__ == "__main__":
                     "passnum", "match_strict", "match_moderate",
                     "match_relaxed", "match_review", "weight"]
     for comp_vars in config["comp_names_by_pass"]:
-        for var in comp_vars:
+        for var in config["comp_names_by_pass"][comp_vars]:
             if var not in output_vars:
                 output_vars.append(var)
 
     # Run match in parallel
     all_cands = []
-    tot_pass_cnt = len(config['blocks_by_pass'])
+    passes =  sorted(config['blocks_by_pass'])
     last_time = time.time()
     i = 0
-    for passnum in range(tot_pass_cnt):
+    for passnum in passes:
+        p_numeric = int(re.sub(r'\D+', '', passnum))
         # Complete blocking for pass
         past_join_cond_str  = block_functions.run_blocking_pass(
                                                     config["blocks_by_pass"],
@@ -214,8 +219,9 @@ if __name__ == "__main__":
                     if len(all_cands) == num_processes * 2:
                         dfs = process_pool.starmap(run_match, tuple(all_cands))
                         dfs = pd.concat(dfs, ignore_index=True)
-                        counts = match_functions.calculate_pass_match_counts(dfs, counts)
-                        match_functions.calculate_weights(dfs, tot_pass_cnt)
+                        counts = match_functions.calculate_pass_match_counts(dfs, 
+                                                                             counts)
+                        match_functions.calculate_weights(dfs, len(passes))
                         # Save out sorted dataframe to temp file
                         dfs = dfs.sort_values("weight", ascending=False)
                         dfs.reindex(columns=output_vars).to_csv(f"temp_match_{i}.csv",
@@ -229,15 +235,21 @@ if __name__ == "__main__":
             conn.commit()
         else:
             blockfile = f'{cand_table}.csv'
-            dtypes = {"idx_a": int, "idx_b": int, "indv_id_a":str, "indv_id_b": str}
-            for chunk in pd.read_csv(blockfile, chunksize=chunk_sizes[str(passnum)], dtype=dtypes):
+            dtypes = {"idx_a": int, 
+                      "idx_b": int, 
+                      "indv_id_a":str, 
+                      "indv_id_b": str}
+            for chunk in pd.read_csv(blockfile, 
+                                     chunksize=chunk_sizes[str(p_numeric)], 
+                                     dtype=dtypes):
                 if not chunk.empty:
                     all_cands.append([chunk, passnum])
                 if len(all_cands) == num_processes * 2:
                     dfs = process_pool.starmap(run_match, tuple(all_cands))
                     dfs = pd.concat(dfs, ignore_index=True)
-                    counts = match_functions.calculate_pass_match_counts(dfs, counts)
-                    match_functions.calculate_weights(dfs, tot_pass_cnt)
+                    counts = match_functions.calculate_pass_match_counts(dfs, 
+                                                                         counts)
+                    match_functions.calculate_weights(dfs, len(passes))
                     # Save out sorted dataframe to temp file
                     dfs = dfs.sort_values("weight", ascending=False)
                     dfs.reindex(columns=output_vars).to_csv(f"temp_match_{i}.csv",
@@ -251,9 +263,10 @@ if __name__ == "__main__":
         dfs = process_pool.starmap(run_match, tuple(all_cands))
         dfs = pd.concat(dfs, ignore_index=True)
         counts = match_functions.calculate_pass_match_counts(dfs, counts)
-        match_functions.calculate_weights(dfs, tot_pass_cnt)
+        match_functions.calculate_weights(dfs, len(passes))
         dfs = dfs.sort_values("weight", ascending=False)
-        dfs.reindex(columns=output_vars).to_csv(f"temp_match_{i}.csv", index=False)
+        dfs.reindex(columns=output_vars).to_csv(f"temp_match_{i}.csv", 
+                                                index=False)
         all_cands = []
         gc.collect()
     if conn:
@@ -272,8 +285,8 @@ if __name__ == "__main__":
 
     ### Print match counts ### -------------------------------------------------
     gid_passes = ['dup_' + gid for gid in config['ground_truth_ids']]
-    reg_passes = list(range(len(config['blocks_by_pass'])))
-    all_passes = gid_passes + reg_passes
+    all_passes = gid_passes + passes
+
     # Per pass
     for p in all_passes:
         match_functions.print_match_count(counts, passnum=p)

@@ -248,32 +248,32 @@ ground_truth_ids = []
 # the two variables to invert (e.g. xf_inv, xl_inv)
 # - If you want to skip a pass in the default blocking strategy, leave
 # the list for that pass as empty brackets.
-blocks_by_pass = [
-    ['common_id', 'fname', 'lname', 'byear', 'bmonth', 'bday'], # pass 0
-    ['common_id'], # pass 1
-    ['xf', 'xl'] , # pass 2
-    ['xf_inv', 'xl_inv'] , # pass 3, inverted soundex
-    ['byear', 'bmonth', 'bday'] # pass 4
-]
+blocks_by_pass = {
+    "0": ['common_id', 'fname', 'lname', 'byear', 'bmonth', 'bday'], # pass 0
+    "1": ['common_id'], # pass 1
+    "2": ['xf', 'xl'] , # pass 2
+    "3": ['xf_inv', 'xl_inv'] , # pass 3, inverted soundex
+    "4": ['byear', 'bmonth', 'bday'] # pass 4
+}
 
 ### Comparison variables and similarity measures  -----------------------------
 
 # Lists of comparison names by blocking pass
 # These comparison names will have corresponding similarity measurements defined
 # in sim_param below.
-comp_names_by_pass = [
-  [], # pass 0, N/A
-  ['fname', 'mname', 'lname', 'altlname',
+comp_names_by_pass = {
+  "0": [], # pass 0, N/A
+  "1": ['fname', 'mname', 'lname', 'altlname',
       'bmonthbday', 'byear', 'fnamelname', 'lnamefname'], # pass 1
-  ['fname', 'mname', 'lname', 'altlname',
+  "2": ['fname', 'mname', 'lname', 'altlname',
       'bmonthbday', 'byear', 'common_id', 'minitial',
       'zipcode', 'county'] , # pass 2
-  ['fnamelname', 'mname', 'lnamefname', 'altlname',
+  "3": ['fnamelname', 'mname', 'lnamefname', 'altlname',
       'bmonthbday', 'byear', 'common_id', 'minitial',
       'zipcode', 'county'] , # pass 3
-  ['fname', 'mname', 'lname', 'altlname',
+  "4": ['fname', 'mname', 'lname', 'altlname',
    'common_id', 'minitial', 'zipcode', 'county'] # pass 4
-]
+}
 
 # Parameters for similarity measures corresponding to each comparison name
 # listed in comp_names_by_pass above. See match_helpers.prepare_comparers()

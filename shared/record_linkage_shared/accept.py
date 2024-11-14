@@ -8,6 +8,7 @@ comments preceding each code section below.
 
 '''
 import os
+import re
 import json
 import sys
 
@@ -40,7 +41,7 @@ def accept_matches(df_match, passnum, config):
 
     Input:
         - df_match: output dataframe from match.py, incl. pair indices and scores
-        - passnum: the pass number
+        - passnum (str): the current pass
         - config (dict)
 
     Returns the dataframe with four additional boolean columns:
@@ -120,9 +121,11 @@ def accept_matches(df_match, passnum, config):
 
     ##### Evaluate and accept -------------------------------------------------
     this_pass = df_match.passnum == passnum
+    p_numeric = int(re.sub(r'\D+', '', passnum))
     accepted_in_prev_strictness = False
+
     for strictness in ('strict', 'moderate', 'relaxed', "review"):
-        accept_fn = getattr(accept_functions, f"accept_p{passnum}_{strictness}")
+        accept_fn = getattr(accept_functions, f"accept_p{p_numeric}_{strictness}")
         df_match.loc[this_pass, f"match_{strictness}"] = accept_fn(df_match,
                                                                    masks,
                                                                    thresholds) | \
