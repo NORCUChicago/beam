@@ -96,7 +96,8 @@ df_a =  {
         },
         # Map each standard match variable listed below to the *preprocessed*
         # variable name. If a match variable is not included in your data, delete
-        # the key-value pair for it.
+        # the key-value pair for it. Make sure to add any comparison variables 
+        # to the sim_param below
         'vars' :{
             ### ID that represents an individual in this dataset
             'indv_id': '',
@@ -183,7 +184,8 @@ df_b =  {
         },
         # Map each standard match variable listed below to the *preprocessed*
         # variable name. If a match variable is not included in your data, delete
-        # the key-value pair for it.
+        # the key-value pair for it.Make sure to add any comparison variables 
+        # to the sim_param below
         'vars' :{
             ### ID that represents an individual in this dataset
             'indv_id': '',
@@ -248,6 +250,11 @@ ground_truth_ids = []
 # the two variables to invert (e.g. xf_inv, xl_inv)
 # - If you want to skip a pass in the default blocking strategy, leave
 # the list for that pass as empty brackets.
+# - If you want to use the same acceptance logic for multiple blocks,
+# name each block with the number of that block logic and a sublabel (for
+# example 1a and 1b to run two blocks using the acceptance logic for block 1)
+# - Be sure to add comparison variables for any additional blocks in the section
+# below
 blocks_by_pass = {
     "0": ['common_id', 'fname', 'lname', 'byear', 'bmonth', 'bday'], # pass 0
     "1": ['common_id'], # pass 1
