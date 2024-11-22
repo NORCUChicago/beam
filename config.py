@@ -96,12 +96,16 @@ df_a =  {
         },
         # Map each standard match variable listed below to the *preprocessed*
         # variable name. If a match variable is not included in your data, delete
-        # the key-value pair for it.
+        # the key-value pair for it. Make sure to add any comparison variables 
+        # to the sim_param below
         'vars' :{
             ### ID that represents an individual in this dataset
             'indv_id': '',
             ### Comparison variables
             # ID that is shared with the other dataset (e.g. SSN, student ID)
+            # To add multiple common_ids, use "common_id" as the prefix for all, followed
+            # by whatever name wanted to differentiate the ids (e.g. common_id_ssn). 
+            # Ensure mapped name aligns between both df_a and df_b
             'common_id': '',
             # Name components
             'fname': '',
@@ -180,12 +184,16 @@ df_b =  {
         },
         # Map each standard match variable listed below to the *preprocessed*
         # variable name. If a match variable is not included in your data, delete
-        # the key-value pair for it.
+        # the key-value pair for it.Make sure to add any comparison variables 
+        # to the sim_param below
         'vars' :{
             ### ID that represents an individual in this dataset
             'indv_id': '',
             ### Comparison variables
             # ID that is shared with the other dataset (e.g. SSN, student ID)
+            # To add multiple common_ids, use "common_id" as the prefix for all, followed
+            # by whatever name wanted to differentiate the ids (e.g. common_id_ssn). 
+            # Ensure mapped name aligns between both df_a and df_b
             'common_id': '',
             # Name components
             'fname': '',
@@ -237,37 +245,47 @@ ground_truth_ids = []
 
 ### Blocking strategy ---------------------------------------------------------
 
-# Lists of blocking variables by blocking pass
+# Mapping of blocking pass to blocking variables
+# - Format with the blocking pass as the key and the blocking variables as values
 # - For any inverted blocking passes, add '_inv' to the end of each of
-# the two variables to invert (e.g. xf_inv, xl_inv)
+#   the two variables to invert (e.g. xf_inv, xl_inv)
 # - If you want to skip a pass in the default blocking strategy, leave
-# the list for that pass as empty brackets.
-blocks_by_pass = [
-    ['common_id', 'fname', 'lname', 'byear', 'bmonth', 'bday'], # pass 0
-    ['common_id'], # pass 1
-    ['xf', 'xl'] , # pass 2
-    ['xf_inv', 'xl_inv'] , # pass 3, inverted soundex
-    ['byear', 'bmonth', 'bday'] # pass 4
-]
+#   the list for that pass as empty brackets.
+# - Each blocking pass is mapped to an acceptance logic function based on the 
+#   pass number, as defined in `shared/record_linkage_shared/accept_functions.py`.  
+#   To apply the same acceptance logic function to multiple blocking passes,  
+#   assign those passes the same pass number with a unique sublabel  
+#   (e.g., blocking passes '1a' and '1b' will use the `accept_p1_<strictness>` 
+#    function in `accept_functions.py`).  
+# - Be sure to add comparison variables for any additional blocks in the section
+#   below
+blocks_by_pass = {
+    "0": ['common_id', 'fname', 'lname', 'byear', 'bmonth', 'bday'], # pass 0
+    "1": ['common_id'], # pass 1
+    "2": ['xf', 'xl'] , # pass 2
+    "3": ['xf_inv', 'xl_inv'] , # pass 3, inverted soundex
+    "4": ['byear', 'bmonth', 'bday'] # pass 4
+}
 
 ### Comparison variables and similarity measures  -----------------------------
 
-# Lists of comparison names by blocking pass
+# Mapping of blocking pass to comparison names
+# Format with the blocking pass as the key and the comparison variables as values
 # These comparison names will have corresponding similarity measurements defined
 # in sim_param below.
-comp_names_by_pass = [
-  [], # pass 0, N/A
-  ['fname', 'mname', 'lname', 'altlname',
+comp_names_by_pass = {
+  "0": [], # pass 0, N/A
+  "1": ['fname', 'mname', 'lname', 'altlname',
       'bmonthbday', 'byear', 'fnamelname', 'lnamefname'], # pass 1
-  ['fname', 'mname', 'lname', 'altlname',
+  "2": ['fname', 'mname', 'lname', 'altlname',
       'bmonthbday', 'byear', 'common_id', 'minitial',
       'zipcode', 'county'] , # pass 2
-  ['fnamelname', 'mname', 'lnamefname', 'altlname',
+  "3": ['fnamelname', 'mname', 'lnamefname', 'altlname',
       'bmonthbday', 'byear', 'common_id', 'minitial',
       'zipcode', 'county'] , # pass 3
-  ['fname', 'mname', 'lname', 'altlname',
+  "4": ['fname', 'mname', 'lname', 'altlname',
    'common_id', 'minitial', 'zipcode', 'county'] # pass 4
-]
+}
 
 # Parameters for similarity measures corresponding to each comparison name
 # listed in comp_names_by_pass above. See match_helpers.prepare_comparers()

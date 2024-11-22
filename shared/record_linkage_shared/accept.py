@@ -8,6 +8,7 @@ comments preceding each code section below.
 
 '''
 import os
+import re
 import json
 import sys
 
@@ -40,7 +41,7 @@ def accept_matches(df_match, passnum, config):
 
     Input:
         - df_match: output dataframe from match.py, incl. pair indices and scores
-        - passnum: the pass number
+        - passnum (str): the current pass
         - config (dict)
 
     Returns the dataframe with four additional boolean columns:
@@ -66,14 +67,16 @@ def accept_matches(df_match, passnum, config):
 
     # create filters for high-similarity common_id so that it will skip
     # if the match does not compare common_id similarities
-    if 'common_id' in df_match.columns:
-        masks['common_id_null'] = df_match.common_id == -1
-        masks['id_high_mask'] = df_match.common_id >= thresholds['id_high_score']
-        masks['id_review_mask'] = df_match.common_id >= id_review_score
-    else:
-        masks['common_id_null'] = True
-        masks['id_high_mask'] = False
-        masks['id_review_mask'] = False
+    common_id_fields = [x for x in df_match.columns if "common_id" in x]
+    masks['common_id_null'] = len(common_id_fields) == 0
+    masks['id_high_mask'] = False
+    masks['id_review_mask'] = False
+
+    for common_id in common_id_fields:
+        # Note: If any ID is null, the common_id_null mask is applied
+        masks['common_id_null'] = masks['common_id_null'] | (df_match[common_id] == -1)
+        masks['id_high_mask'] = masks['id_high_mask'] | (df_match[common_id] >= thresholds['id_high_score'])
+        masks['id_review_mask'] = masks['id_review_mask'] | (df_match[common_id] >= id_review_score)
 
     # mname filters
     if 'minitial' in df_match.columns:
@@ -119,9 +122,11 @@ def accept_matches(df_match, passnum, config):
 
     ##### Evaluate and accept -------------------------------------------------
     this_pass = df_match.passnum == passnum
+    p_numeric = int(re.sub(r'\D+', '', passnum))
     accepted_in_prev_strictness = False
+
     for strictness in ('strict', 'moderate', 'relaxed', "review"):
-        accept_fn = getattr(accept_functions, f"accept_p{passnum}_{strictness}")
+        accept_fn = getattr(accept_functions, f"accept_p{p_numeric}_{strictness}")
         df_match.loc[this_pass, f"match_{strictness}"] = accept_fn(df_match,
                                                                    masks,
                                                                    thresholds) | \
