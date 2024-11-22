@@ -73,6 +73,7 @@ def accept_matches(df_match, passnum, config):
     masks['id_review_mask'] = False
 
     for common_id in common_id_fields:
+        # Note: If any ID is null, the common_id_null mask is applied
         masks['common_id_null'] = masks['common_id_null'] | (df_match[common_id] == -1)
         masks['id_high_mask'] = masks['id_high_mask'] | (df_match[common_id] >= thresholds['id_high_score'])
         masks['id_review_mask'] = masks['id_review_mask'] | (df_match[common_id] >= id_review_score)

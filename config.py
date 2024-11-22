@@ -245,16 +245,20 @@ ground_truth_ids = []
 
 ### Blocking strategy ---------------------------------------------------------
 
-# Lists of blocking variables by blocking pass
+# Mapping of blocking pass to blocking variables
+# - Format with the blocking pass as the key and the blocking variables as values
 # - For any inverted blocking passes, add '_inv' to the end of each of
-# the two variables to invert (e.g. xf_inv, xl_inv)
+#   the two variables to invert (e.g. xf_inv, xl_inv)
 # - If you want to skip a pass in the default blocking strategy, leave
-# the list for that pass as empty brackets.
-# - If you want to use the same acceptance logic for multiple blocks,
-# name each block with the number of that block logic and a sublabel (for
-# example 1a and 1b to run two blocks using the acceptance logic for block 1)
+#   the list for that pass as empty brackets.
+# - Each blocking pass is mapped to an acceptance logic function based on the 
+#   pass number, as defined in `shared/record_linkage_shared/accept_functions.py`.  
+#   To apply the same acceptance logic function to multiple blocking passes,  
+#   assign those passes the same pass number with a unique sublabel  
+#   (e.g., blocking passes '1a' and '1b' will use the `accept_p1_<strictness>` 
+#    function in `accept_functions.py`).  
 # - Be sure to add comparison variables for any additional blocks in the section
-# below
+#   below
 blocks_by_pass = {
     "0": ['common_id', 'fname', 'lname', 'byear', 'bmonth', 'bday'], # pass 0
     "1": ['common_id'], # pass 1
@@ -265,7 +269,8 @@ blocks_by_pass = {
 
 ### Comparison variables and similarity measures  -----------------------------
 
-# Lists of comparison names by blocking pass
+# Mapping of blocking pass to comparison names
+# Format with the blocking pass as the key and the comparison variables as values
 # These comparison names will have corresponding similarity measurements defined
 # in sim_param below.
 comp_names_by_pass = {

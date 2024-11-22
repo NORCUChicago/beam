@@ -180,8 +180,8 @@ def run_match_parallelized(df_a, df_b, vars_a, vars_b, name_a, name_b,
     output_vars = ["indv_id_a", "indv_id_b", "idx_a", "idx_b",
                    "passnum", "match_strict", "match_moderate",
                    "match_relaxed", "match_review", "weight"]
-    for comp_vars in config["comp_names_by_pass"]:
-        for var in config["comp_names_by_pass"][comp_vars]:
+    for comp_vars in config['comp_names_by_pass'].values():
+        for var in comp_vars:
             if var not in output_vars:
                 output_vars.append(var)
 
