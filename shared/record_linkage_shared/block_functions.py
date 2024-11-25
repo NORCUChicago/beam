@@ -351,8 +351,7 @@ def make_df(all_pairs):
     - Gets rid of extra index columns.
     
     Args:
-        all_pairs ({str: multindex]}): Map of multindex name to list of pairs.
-        pass_name_to_number ({str: int}): Map of block name to number.
+        all_pairs ({str: multindex]}): Map of multindex name to list of pairs
         
     Returns: 
         DataFrame with all pairs.
@@ -376,7 +375,7 @@ def make_df(all_pairs):
     out = out[['indv_id_a', 'indv_id_b', 'idx_a', 'idx_b']]
     return out
 
-def run_blocking_pass(blocks_by_pass, passnum, vars_a, vars_b,
+def run_blocking_pass(blocks_by_pass, pass_name, vars_a, vars_b,
                       name_a, name_b, past_join_cond_str,
                       table_a, table_b, df_a, df_b, schema=None, cursor=None):
     '''
@@ -386,7 +385,7 @@ def run_blocking_pass(blocks_by_pass, passnum, vars_a, vars_b,
     Inputs:
         blocks_by_pass (list): list of each pass, containing variables to block
             on for each pass
-        passnum (int): The current pass
+        pass_name (str): The current pass
         vars_a (dict): source variable names for df a
         vars_b (dict): source variable names for df b
         schema (str): name of schema where candidates tables are stored
@@ -400,7 +399,7 @@ def run_blocking_pass(blocks_by_pass, passnum, vars_a, vars_b,
 
     Returns (str) updated past_join_cond_str
     '''
-    blocking_vars = blocks_by_pass[passnum]
+    blocking_vars = blocks_by_pass[pass_name]
 
     indv_id_a = vars_a['indv_id']
     indv_id_b = vars_b['indv_id']
@@ -421,7 +420,7 @@ def run_blocking_pass(blocks_by_pass, passnum, vars_a, vars_b,
         dedup = False
 
     if blocking_vars:
-        print(f"Pass {passnum} - Blocking on: {', '.join(blocking_vars)}")
+        print(f"Pass {pass_name} - Blocking on: {', '.join(blocking_vars)}")
         pass_start = time.time()
 
         # Flag if this pass is blocked on variables inverted
@@ -437,12 +436,12 @@ def run_blocking_pass(blocks_by_pass, passnum, vars_a, vars_b,
         if (len(passblocks_a) != len(blocking_vars) or
             len(passblocks_b) != len(blocking_vars)):
             missing_var = {v for v in blocking_vars if v not in vars_a or v not in vars_b}
-            print(f"\tPass {passnum} is being skipped since {missing_var} is not included.")
+            print(f"\tPass {pass_name} is being skipped since {missing_var} is not included.")
             return past_join_cond_str
         if inverted_blocks:
             passblocks_b.reverse()
         if cursor:
-            candidates_table = f'{schema}.candidates_{match_name}_p{passnum}'
+            candidates_table = f'{schema}.candidates_{match_name}_p{pass_name}'
             past_join_cond_str = find_pass_candidates(passblocks_a, passblocks_b,
                                                     indv_id_a, indv_id_b,
                                                     past_join_cond_str,
@@ -450,9 +449,9 @@ def run_blocking_pass(blocks_by_pass, passnum, vars_a, vars_b,
                                                     candidates_table, dedup,
                                                     cursor)
         else:
-            candidates_table = f'candidates_{match_name}_p{passnum}.csv'
+            candidates_table = f'candidates_{match_name}_p{pass_name}.csv'
             past_join_cond_str, rows = run_block(df_a, df_b, passblocks_a, passblocks_b, 
-                               passnum, past_join_cond_str, dedup, candidates_table)
+                               pass_name, past_join_cond_str, dedup, candidates_table)
             df_a.reset_index(inplace=True)
             if name_b != "dedup":
                 df_b.reset_index(inplace=True)
@@ -465,5 +464,5 @@ def run_blocking_pass(blocks_by_pass, passnum, vars_a, vars_b,
         return past_join_cond_str
 
     else:
-        print(f"Pass {passnum} - Skipped according to config_match")
+        print(f"Pass {pass_name} - Skipped according to config_match")
         return ''

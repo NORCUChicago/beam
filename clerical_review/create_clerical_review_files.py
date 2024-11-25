@@ -69,12 +69,12 @@ def limit_results(df, strict_1, strict_2, passes):
     strict_1_results = df[df[f"match_{strict_1}"]]
     strict_2_results = df[(df[f"match_{strict_2}"]) & (~df[f'match_{strict_1}'])]
 
-    for pnum in range(passes):
+    for p in passes:
         if strict_1:
-            strict_1_pass = strict_1_results[strict_1_results.passnum == pnum]
+            strict_1_pass = strict_1_results[strict_1_results.pass_name == p]
             keep.append(strict_1_pass.tail(100))
         if strict_2:
-            strict_2_pass = strict_2_results[strict_2_results.passnum == pnum]
+            strict_2_pass = strict_2_results[strict_2_results.pass_name == p]
             keep.append(strict_2_pass.head(100))
 
     return pd.concat(keep)
@@ -100,9 +100,9 @@ def pull_and_prep_data(strict_1, strict_2, config, name_a, name_b, results):
     output_file = f"{clerical_review}/{name_a}_{name_b}_{strict_1}_{strict_2}.txt"
 
     # Define number of passes and reduce results to highest and lowest of each pass
-    passes = len(config["blocks_by_pass"])
+    passes = sorted(config["blocks_by_pass"].keys())
     keep = limit_results(results, strict_1, strict_2, passes)
-    keep = keep[["idx_a", "idx_b", "weight", "passnum",
+    keep = keep[["idx_a", "idx_b", "weight", "pass_name",
                   f"match_{strict_1}", f"match_{strict_2}"]].reset_index(drop=True)
 
     # List out indexes needed from each dataset
@@ -170,7 +170,7 @@ def pull_and_prep_data(strict_1, strict_2, config, name_a, name_b, results):
     merge_dataset = pd.concat([merge_a, merge_b]).sort_index()
     merge_dataset.index.name = "index"
     merge_dataset = merge_dataset[cols]
-    merge_dataset["passnum"] = merge_dataset["passnum"].astype(float)
+    merge_dataset["pass_name"] = merge_dataset["pass_name"].str.strip()
 
     return (merge_dataset, output_file)
 
@@ -204,13 +204,13 @@ def create_file_for_review(merge_dataset, output_file, strict_1, strict_2):
     max_strictness = max(len(strict_1), len(strict_2)) # To use for ljust on strictness
 
     # Iterate over passes
-    passes = merge_dataset["passnum"].unique()
+    passes = merge_dataset["pass_name"].unique()
     passes.sort()
     with open(output_file, "w") as w:
         for p in passes:
-            w.write(f'{"-"*74} PASS {str(p)[:1]} {"-"*74}\n')
+            w.write(f'{"-"*74} PASS {p.strip()} {"-"*74}\n')
             # Select wanted rows from strict_1 matches
-            r_1 = matched_records[matched_records.passnum == p].sort_values(["weight",
+            r_1 = matched_records[matched_records.pass_name == p].sort_values(["weight",
                                                                             "idx_a",
                                                                             "idx_b",
                                                                             "index"],
@@ -220,12 +220,12 @@ def create_file_for_review(merge_dataset, output_file, strict_1, strict_2):
                                                                                 False,
                                                                                 True])
             # Replace every 2nd index with pass/strictness info
-            r_1.iloc[1::2, r_1.columns.get_loc("idx_a")] = f"Pass {str(p)[:1]}"
+            r_1.iloc[1::2, r_1.columns.get_loc("idx_a")] = f"Pass {p.strip()}"
             r_1.iloc[1::2, r_1.columns.get_loc("idx_b")] = strict_1.ljust(max_strictness)
             r_1["weight"] = r_1.weight.astype(str).str[:8].str.ljust(8)
 
             # Repeat above for strict_2 matches
-            r_2 = unmatched_records[unmatched_records.passnum == p].sort_values(["weight",
+            r_2 = unmatched_records[unmatched_records.pass_name == p].sort_values(["weight",
                                                                                 "idx_a",
                                                                                 "idx_b",
                                                                                 "index"],
@@ -234,7 +234,7 @@ def create_file_for_review(merge_dataset, output_file, strict_1, strict_2):
                                                                                     False,
                                                                                     False,
                                                                                     True])
-            r_2.iloc[1::2, r_2.columns.get_loc("idx_a")] = f"Pass {str(p)[:1]}"
+            r_2.iloc[1::2, r_2.columns.get_loc("idx_a")] = f"Pass {p.strip()}"
             r_2.iloc[1::2, r_1.columns.get_loc("idx_b")] = strict_2.ljust(max_strictness)
             r_2["weight"] = r_2.weight.astype(str).str[:8].str.ljust(8)
 
@@ -245,14 +245,14 @@ def create_file_for_review(merge_dataset, output_file, strict_1, strict_2):
             r_2 = r_2.groupby(grp, group_keys=False).apply(f).reset_index(drop=True)
 
             # Write the strict_1 dataframe to the output file
-            w.write(r_1.drop(["passnum",
+            w.write(r_1.drop(["pass_name",
                              f"match_{strict_1}",
                              f"match_{strict_2}"],
                              axis=1).to_string(index=False, justify="left"))
             w.write(f'\n{"-"*69} THRESHOLD CUTOFF {"-"*69}\n\n')
             # If there are results for the strict_2 matches, write to output file
             if not r_2.empty:
-                w.write(r_2.drop(["passnum",
+                w.write(r_2.drop(["pass_name",
                                  f"match_{strict_1}",
                                  f"match_{strict_2}"],
                                  axis=1).to_string(index=False, justify="left", header=False))

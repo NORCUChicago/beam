@@ -178,7 +178,7 @@ def run_match_parallelized(df_a, df_b, vars_a, vars_b, name_a, name_b,
         cursor = None
 
     output_vars = ["indv_id_a", "indv_id_b", "idx_a", "idx_b",
-                   "passnum", "match_strict", "match_moderate",
+                   "pass_name", "match_strict", "match_moderate",
                    "match_relaxed", "match_review", "weight"]
     for comp_vars in config['comp_names_by_pass'].values():
         for var in comp_vars:
@@ -190,19 +190,19 @@ def run_match_parallelized(df_a, df_b, vars_a, vars_b, name_a, name_b,
     passes =  sorted(config['blocks_by_pass'])
     last_time = time.time()
     i = 0
-    for passnum in passes:
-        p_numeric = int(re.sub(r'\W+', '', passnum))
+    for pass_name in passes:
+        passnum = int(re.sub(r'\W+', '', pass_name))
         # Complete blocking for pass
         past_join_cond_str  = block_functions.run_blocking_pass(
                                                 config["blocks_by_pass"],
-                                                passnum,
+                                                pass_name,
                                                 vars_a, vars_b,
                                                 name_a, name_b,
                                                 past_join_cond_str,
                                                 table_a, table_b,
                                                 df_a, df_b,
                                                 schema, cursor)
-        cand_table = f"candidates_{name_a}_{name_b}_p{passnum}"
+        cand_table = f"candidates_{name_a}_{name_b}_p{pass_name}"
         print(f'Looking up {cand_table}...')
         if cursor:
             # Check if this blocking pass is skipped
@@ -210,11 +210,11 @@ def run_match_parallelized(df_a, df_b, vars_a, vars_b, name_a, name_b,
                 f'''SELECT EXISTS (SELECT * FROM information_schema.tables
                 WHERE table_schema = '{schema}' AND table_name = '{cand_table}');''')
             if not cursor.fetchone()[0]: # Table not found
-                print(f'No candidate table for pass {passnum}, skipping')
+                print(f'No candidate table for pass {pass_name}, skipping')
                 continue
             conn.commit()
             # Read in match pairs and complete similarity checks
-            with conn.cursor(f"passes_cursor_{passnum}") as cur:
+            with conn.cursor(f"passes_cursor_{pass_name}") as cur:
                 cmd = f"SELECT indv_id_a, indv_id_b, idx_a, idx_b FROM {schema}.{cand_table}"
                 cur.execute(cmd)
                 # Read in block by chunks, running similiarity check once threshold hit
@@ -224,7 +224,7 @@ def run_match_parallelized(df_a, df_b, vars_a, vars_b, name_a, name_b,
                     candidates = pd.DataFrame(chunk,
                                             columns=['indv_id_a', 'indv_id_b',
                                                     'idx_a', 'idx_b'])
-                    all_cands.append([candidates, passnum])
+                    all_cands.append([candidates, pass_name])
                     if len(all_cands) == num_processes * 2:
                         dfs = process_pool.starmap(run_match, tuple(all_cands))
                         dfs = pd.concat(dfs, ignore_index=True)
@@ -242,11 +242,11 @@ def run_match_parallelized(df_a, df_b, vars_a, vars_b, name_a, name_b,
             cursor.execute(cmd)
             conn.commit()
         else:
-            if len(past_join_cond_str.get(passnum, 0)) != 0:
+            if len(past_join_cond_str.get(pass_name, 0)) != 0:
                 continue
-            candidates = past_join_cond_str[passnum].to_frame()
-            candidates["passnum"] = passnum
-            all_cands.append([candidates, passnum])
+            candidates = past_join_cond_str[pass_name].to_frame()
+            candidates["pass_name"] = pass_name
+            all_cands.append([candidates, pass_name])
             if len(all_cands) == num_processes * 2:
                 dfs = process_pool.starmap(run_match, tuple(all_cands))
                 dfs = pd.concat(dfs, ignore_index=True)
@@ -281,7 +281,7 @@ def run_match_parallelized(df_a, df_b, vars_a, vars_b, name_a, name_b,
     return counts
 
 
-def run_match_for_candidate_set(candidates, passnum, df_a, df_b, df_sim,
+def run_match_for_candidate_set(candidates, pass_name, df_a, df_b, df_sim,
     std_varnames, comps, config):
     '''
     Flag matches for a set of candidates in a certain pass.
@@ -291,7 +291,7 @@ def run_match_for_candidate_set(candidates, passnum, df_a, df_b, df_sim,
 
     Inputs:
         - candidates: (pandas Dataframe) dataframe of indexes to compare
-        - passnum: (str) the current pass
+        - pass_name: (str) the current pass
         - df_a, df_b: (pandas Dataframe) original datasets to compare
         - df_sim: (pandas Dataframe) dataset to store results
         - std_varnames: (list) standardized variable names in input data
@@ -300,18 +300,18 @@ def run_match_for_candidate_set(candidates, passnum, df_a, df_b, df_sim,
 
     Returns updated df_sim
     '''
-    p_numeric = int(re.sub(r'\D+', '', passnum))
+    passnum = int(re.sub(r'\D+', '', pass_name))
 
     # Find matching candidates for this pass based on blocking variables
-    if (p_numeric == 0) & (len(config['comp_names_by_pass'][passnum]) == 0):
+    if (passnum == 0) & (len(config['comp_names_by_pass'][pass_name]) == 0):
         # All candidates are exact matches, no comparison needed
         matches = candidates
-        matches['passnum'] = passnum
+        matches['pass_name'] = pass_name
         df_sim = pd.concat([df_sim, matches], axis=0)
     else:
         # Calculate similarities for comparison variables
         cands = pd.MultiIndex.from_frame(candidates[["idx_a", "idx_b"]])
-        comp_names = config['comp_names_by_pass'][passnum]
+        comp_names = config['comp_names_by_pass'][pass_name]
         # Remove any comparisons listed in config but not in input data
         valid_comp_names = get_valid_comp_names(std_varnames)
         valid_comp_names_for_pass = [c for c in comp_names
@@ -320,7 +320,7 @@ def run_match_for_candidate_set(candidates, passnum, df_a, df_b, df_sim,
         df_sim = calc_similarities(
             df_a=df_a,
             df_b=df_b,
-            passnum=passnum,
+            pass_name=pass_name,
             candidates=cands,
             comp_names=valid_comp_names_for_pass,
             comps=comps
@@ -332,7 +332,7 @@ def run_match_for_candidate_set(candidates, passnum, df_a, df_b, df_sim,
             left_on=['idx_a', 'idx_b'],
             right_on=['idx_a', 'idx_b']
             )
-    df_sim = accept.accept_matches(df_sim, passnum, config)
+    df_sim = accept.accept_matches(df_sim, pass_name, config)
     return df_sim
 
 
@@ -356,7 +356,7 @@ def read_in_pairs_sharing_gid(name_a, name_b, gid, cursor, schema):
     cursor.execute(cmd)
     candidates = pd.DataFrame(
         cursor.fetchall(),
-        columns=["indv_id_a", "indv_id_b", "idx_a", "idx_b", "passnum",
+        columns=["indv_id_a", "indv_id_b", "idx_a", "idx_b", "pass_name",
                  "match_strict", "match_moderate", "match_relaxed", "match_review"]
         )
     candidates_table = f'{schema}.candidates_{name_a}_{name_b}_matching_{gid}'
@@ -471,12 +471,12 @@ def get_valid_comp_names(std_varnames):
     return valid_comp_names
 
 
-def calc_similarities(df_a, df_b, passnum, candidates, comp_names, comps):
+def calc_similarities(df_a, df_b, pass_name, candidates, comp_names, comps):
     '''Calculate similarity scores for a given pass as defined by comp_names
 
     Input:
         - df_a, df_b: (pandas DataFrame) input data
-        - passnum: (str) the current pass
+        - pass_name: (str) the current pass
         - candidates: (pandas MultiIndex) pairs of indices of match candidates,
             returned by find_candidates function
         - comp_names: (list of str) list of comparison names/labels for this
@@ -490,7 +490,7 @@ def calc_similarities(df_a, df_b, passnum, candidates, comp_names, comps):
     comparer = recordlinkage.Compare(pass_comps)
     df_sim = comparer.compute(candidates, df_a, df_b)
     df_sim = df_sim.rename_axis(['idx_a', 'idx_b']).reset_index()
-    df_sim['passnum'] = passnum
+    df_sim['pass_name'] = pass_name
     return df_sim
 
 
@@ -640,7 +640,7 @@ def calculate_pass_match_counts(dfs, counts):
     '''
     Calculate the total match counts for each pass, over strictness levels,
     by converting to a long dataframe over idxes, pass, and strictness
-    level and calculating sum of accepted pairs over passnum/strictness.
+    level and calculating sum of accepted pairs over pass_name/strictness.
 
     Inputs:
         dfs (dataframe): match results
@@ -649,11 +649,11 @@ def calculate_pass_match_counts(dfs, counts):
     Returns (df) updated counts dataframe
     '''
     df_count =  pd.wide_to_long(dfs, 'match',
-                        i=['idx_a', 'idx_b', 'passnum'],
+                        i=['idx_a', 'idx_b', 'pass_name'],
                         j='strictness',
                         sep='_',
                         suffix=r'\w+'
-                        ).reset_index().groupby(['passnum', 'strictness']
+                        ).reset_index().groupby(['pass_name', 'strictness']
                         )['match'].sum().reset_index()
     counts = pd.concat([counts, df_count], axis=0, ignore_index=True)
     return counts
@@ -667,20 +667,20 @@ def calculate_weights(dfs, tot_pass_cnt):
         dfs (dataframe): match results
         tot_pass_cnt (int): total number of passes
     '''
-    dfs["p_numeric"] = dfs.apply(lambda x: int(re.sub(r'\D+', '', x.passnum)),
+    dfs["passnum"] = dfs.apply(lambda x: int(re.sub(r'\D+', '', x.pass_name)),
                                  axis=1)
-    eval_string = f"10 ** ({tot_pass_cnt} - p_numeric) + " + \
+    eval_string = f"10 ** ({tot_pass_cnt} - passnum) + " + \
                   " + ".join(dfs.drop(columns=["indv_id_a",
                                                "indv_id_b",
                                                "idx_a", "idx_b",
                                                "match_strict", "match_moderate",
                                                "match_relaxed", "match_review",
-                                               "passnum", "p_numeric"]))
+                                               "pass_name", "passnum"]))
 
     # Replace negative scores (ie missing values) with .5 to avoid
     # negatively impacting weights
     dfs["weight"] = dfs.replace(-1, .5).fillna(0).eval(eval_string)
-    dfs.drop(columns=["p_numeric"], inplace=True)
+    dfs.drop(columns=["passnum"], inplace=True)
 
 
 def print_runtime(last_time):
@@ -688,31 +688,31 @@ def print_runtime(last_time):
     print('[time: %s seconds]' % (time.time() - last_time))
 
 
-def print_match_count(counts, passnum=None):
+def print_match_count(counts, pass_name=None):
     '''
     Print match count for each pass or the entire match
     Inputs:
         counts (df): dataframe storing counts of accepted matches
                      by pass/strictness level for each batch.
-        passnum (int, default None): Pass to print counts for
+        pass_name (str, default None): Pass to print counts for
                      if None, print all.
     Returns None, prints to terminal
     '''
-    if passnum is None:
-        p_mask = counts.passnum.notnull()
+    if pass_name is None:
+        p_mask = counts.pass_name.notnull()
         sums = counts[p_mask].fillna(0).groupby(["strictness"]
                                                 ).agg({'match': "sum"}
                                                       ).reset_index()
         print('=== All Passes ===')
     else:
-        p_mask = counts.passnum == passnum
-        sums = counts[p_mask].fillna(0).groupby(["passnum",
+        p_mask = counts.pass_name == pass_name
+        sums = counts[p_mask].fillna(0).groupby(["pass_name",
                                                  "strictness"]
                                                 ).sum().reset_index()
-        if str(passnum).startswith('dup'):
-            print('=== Ground truth ID {} ==='.format(passnum[4:]))
+        if str(pass_name).startswith('dup'):
+            print('=== Ground truth ID {} ==='.format(pass_name[4:]))
         else:
-            print('=== Pass {} ==='.format(passnum))
+            print('=== Pass {} ==='.format(pass_name))
     if "match" not in sums.columns:
         sums["match"] = 0
     strict = sums.loc[sums['strictness'] == 'strict']["match"]

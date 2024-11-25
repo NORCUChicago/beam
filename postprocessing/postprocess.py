@@ -95,7 +95,7 @@ def one_to_one_matching(filename, strictness=None):
                             idx_match_b_to_a[del_b][2] = True
                     elif a not in idx_match_a_to_b:
                         idx_match_a_to_b[a] = [b, weight, True,
-                                               line['passnum']]
+                                               line['pass_name']]
                     if b in idx_match_b_to_a and a != idx_match_b_to_a[b][0]:
                         del_a = idx_match_b_to_a[b][0]
                         if idx_match_a_to_b[del_a][0] == b:
@@ -103,11 +103,11 @@ def one_to_one_matching(filename, strictness=None):
                         idx_match_b_to_a[b][2] = True
                     elif a not in idx_match_b_to_a:
                         idx_match_b_to_a[b] = [a, weight, True,
-                                               line['passnum']]
+                                               line['pass_name']]
                 # match should be added
                 elif (a not in idx_match_a_to_b and b not in idx_match_b_to_a):
-                    idx_match_a_to_b[a] = [b, weight, False, line['passnum']]
-                    idx_match_b_to_a[b] = [a, weight, False, line['passnum']]
+                    idx_match_a_to_b[a] = [b, weight, False, line['pass_name']]
+                    idx_match_b_to_a[b] = [a, weight, False, line['pass_name']]
     return idx_match_a_to_b
 
 
@@ -147,7 +147,7 @@ def mone_or_onem_matching(filename, strictness=None, onecol="indv_id_a"):
                     idx_match_many_to_one[many][2] = True
                 elif many not in idx_match_many_to_one:
                     idx_match_many_to_one[many] = [one, line['weight'], False,
-                                                   line['passnum']]
+                                                   line['pass_name']]
     return idx_match_many_to_one
 
 
@@ -216,24 +216,24 @@ def write_to_csv(matches, filename, matchtype, key_flag=0):
         csvwriter = csv.writer(f)
         if weights:
             # no new ids are created, id_a's are only matched to id_b's
-            csvwriter.writerow(["indv_id_a", "indv_id_b", "passnum"])
+            csvwriter.writerow(["indv_id_a", "indv_id_b", "pass_name"])
         elif matchtype == "dedup":
             # each id is matched to a new id
             csvwriter.writerow(["orig_id", "CH_id"])
         else:
             # pairs of ids are matched to a new id
-            csvwriter.writerow(["indv_id_a", "indv_id_b", "CH_id", "passnum"])
+            csvwriter.writerow(["indv_id_a", "indv_id_b", "CH_id", "pass_name"])
         for i, match in enumerate(matches.items()):
             id_1, row = match
             if type(row) != int:
                 match = list(row)
             if weights and not match[2]:
                 # check if match was deleted
-                passnum = match[3]
+                pass_name = match[3]
                 match = [id_1, match[0]]
                 csvwriter.writerow([match[key_flag],
                                     match[abs(key_flag - 1)],
-                                    passnum])
+                                    pass_name])
             elif matchtype in ("M2M", "dedup"):
                 for match_ids in row:
                     if type(match_ids) == tuple and matchtype == "M2M":

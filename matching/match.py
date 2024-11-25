@@ -98,7 +98,7 @@ if __name__ == "__main__":
         past_join_cond_str = [[],[]]
 
     # Dataframe containing counts of matched pairs in each pass by strictness level
-    counts = pd.DataFrame(columns=["passnum", "strictness", "match"])
+    counts = pd.DataFrame(columns=["pass_name", "strictness", "match"])
 
     # Pre-match: find pairs sharing ground truth IDs ### -----------------------
     last_time = time.time()
@@ -123,7 +123,7 @@ if __name__ == "__main__":
                 cursor=gid_cursor,
                 schema=schema)
             conn.commit()
-            matches['passnum'] = f'dup_{g_id}'
+            matches['pass_name'] = f'dup_{g_id}'
             # Assign ground truth ids weight to be greater than all other passes
             matches["weight"] = 10 ** (len(config["blocks_by_pass"]) + 1)
             df_sim = pd.concat([df_sim, matches], axis=0)
@@ -169,7 +169,7 @@ if __name__ == "__main__":
         cursor = None
 
     output_vars = ["indv_id_a", "indv_id_b", "idx_a", "idx_b",
-                    "passnum", "match_strict", "match_moderate",
+                    "pass_name", "match_strict", "match_moderate",
                     "match_relaxed", "match_review", "weight"]
     for comp_vars in config["comp_names_by_pass"]:
         for var in config["comp_names_by_pass"][comp_vars]:
@@ -181,19 +181,19 @@ if __name__ == "__main__":
     passes =  sorted(config['blocks_by_pass'])
     last_time = time.time()
     i = 0
-    for passnum in passes:
-        p_numeric = int(re.sub(r'\D+', '', passnum))
+    for pass_name in passes:
+        passnum = int(re.sub(r'\D+', '', pass_name))
         # Complete blocking for pass
         past_join_cond_str  = block_functions.run_blocking_pass(
                                                     config["blocks_by_pass"],
-                                                    passnum,
+                                                    pass_name,
                                                     vars_a, vars_b,
                                                     name_a, name_b,
                                                     past_join_cond_str,
                                                     table_a, table_b,
                                                     df_a, df_b,
                                                     schema, cursor)
-        cand_table = f"candidates_{name_a}_{name_b}_p{passnum}"
+        cand_table = f"candidates_{name_a}_{name_b}_p{pass_name}"
         print(f'Looking up {cand_table}...')
         if cursor:
             # Check if this blocking pass is skipped
@@ -201,11 +201,11 @@ if __name__ == "__main__":
                 f'''SELECT EXISTS (SELECT * FROM information_schema.tables
                 WHERE table_schema = '{schema}' AND table_name = '{cand_table}');''')
             if not cursor.fetchone()[0]: # Table not found
-                print(f'No candidate table for pass {passnum}, skipping')
+                print(f'No candidate table for pass {pass_name}, skipping')
                 continue
             conn.commit()
             # Read in match pairs and complete similarity checks
-            with conn.cursor(f"passes_cursor_{passnum}") as cur:
+            with conn.cursor(f"passes_cursor_{pass_name}") as cur:
                 cmd = f"SELECT indv_id_a, indv_id_b, idx_a, idx_b FROM {schema}.{cand_table}"
                 cur.execute(cmd)
                 # Read in block by chunks, running similiarity check once threshold hit
@@ -215,7 +215,7 @@ if __name__ == "__main__":
                     candidates = pd.DataFrame(chunk,
                                             columns=['indv_id_a', 'indv_id_b',
                                                     'idx_a', 'idx_b'])
-                    all_cands.append([candidates, passnum])
+                    all_cands.append([candidates, pass_name])
                     if len(all_cands) == num_processes * 2:
                         dfs = process_pool.starmap(run_match, tuple(all_cands))
                         dfs = pd.concat(dfs, ignore_index=True)
@@ -240,10 +240,10 @@ if __name__ == "__main__":
                       "indv_id_a":str, 
                       "indv_id_b": str}
             for chunk in pd.read_csv(blockfile, 
-                                     chunksize=chunk_sizes[str(p_numeric)], 
+                                     chunksize=chunk_sizes[str(passnum)], 
                                      dtype=dtypes):
                 if not chunk.empty:
-                    all_cands.append([chunk, passnum])
+                    all_cands.append([chunk, pass_name])
                 if len(all_cands) == num_processes * 2:
                     dfs = process_pool.starmap(run_match, tuple(all_cands))
                     dfs = pd.concat(dfs, ignore_index=True)
@@ -289,7 +289,7 @@ if __name__ == "__main__":
 
     # Per pass
     for p in all_passes:
-        match_functions.print_match_count(counts, passnum=p)
+        match_functions.print_match_count(counts, pass_name=p)
     # Entire match
     match_functions.print_match_count(counts)
 

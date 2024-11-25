@@ -152,7 +152,7 @@ class UnionFind():
                 item_to_group[item] = group
         self.count += 1
 
-    def add_item_M2M(self, group, item, passnum):
+    def add_item_M2M(self, group, item, pass_name):
         """Add an item of two values to a group.
             If either value is already in a group, merge the
             two groups.
@@ -160,11 +160,11 @@ class UnionFind():
         Args:
             group (hashable): Group name.
             item (hashable): Tuple of values to be added to a group
-            passnum (int): the pass the item was found in
+            pass_name (str): the pass the item was found in
 
         """
         a, b = item
-        item = (a, b, passnum)
+        item = (a, b, pass_name)
         item_to_group = self.item_to_group
         group_to_item_set = self.group_to_item_set
         group_to_top_group = self.group_to_top_group
@@ -259,7 +259,7 @@ class UnionFind():
                     else:
                         self.add_item_M2M(rowid, ("a_" + row["indv_id_a"].strip(),
                                                   "b_" + row["indv_id_b"].strip()),
-                                          row["passnum"])
+                                          row["pass_name"])
                     # increase row number
                     rowid += 1
         return rowid
