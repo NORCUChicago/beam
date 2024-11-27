@@ -29,7 +29,7 @@ def is_between(x, a, b):
     return (x >= a) & (x <= b)
 
 
-def accept_matches(df_match, passnum, config):
+def accept_matches(df_match, pass_name, config):
     '''
     Evaluate pairs under a given blocking pass based on their similarity scores
     and flag whether they meet the following thresholds:
@@ -41,7 +41,7 @@ def accept_matches(df_match, passnum, config):
 
     Input:
         - df_match: output dataframe from match.py, incl. pair indices and scores
-        - passnum (str): the current pass
+        - pass_name (str): the current pass
         - config (dict)
 
     Returns the dataframe with four additional boolean columns:
@@ -63,7 +63,7 @@ def accept_matches(df_match, passnum, config):
     id_review_score = cutoff_scores.get('id_review_score', 1)
 
     ##### Prep ----------------------------------------------------------------
-    this_pass = df_match.passnum == passnum
+    this_pass = df_match.pass_name == pass_name
 
     # create filters for high-similarity common_id so that it will skip
     # if the match does not compare common_id similarities
@@ -121,12 +121,12 @@ def accept_matches(df_match, passnum, config):
         masks['loc_exact_mask'] = (df_match.county == 1) | masks['loc_exact_mask']
 
     ##### Evaluate and accept -------------------------------------------------
-    this_pass = df_match.passnum == passnum
-    p_numeric = int(re.sub(r'\D+', '', passnum))
+    this_pass = df_match.pass_name == pass_name
+    passnum = int(re.sub(r'\D+', '', pass_name))
     accepted_in_prev_strictness = False
 
     for strictness in ('strict', 'moderate', 'relaxed', "review"):
-        accept_fn = getattr(accept_functions, f"accept_p{p_numeric}_{strictness}")
+        accept_fn = getattr(accept_functions, f"accept_p{passnum}_{strictness}")
         df_match.loc[this_pass, f"match_{strictness}"] = accept_fn(df_match,
                                                                    masks,
                                                                    thresholds) | \

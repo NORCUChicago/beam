@@ -378,7 +378,7 @@ alt_acceptance_dir = ''
 # The metrics used to complete parallelization
 parallelization_metrics = {
   "chunk_sizes": {
-  # The number of pairs pulled at a time to compare by pass. 
+  # The number of pairs pulled at a time to compare by pass number. 
   # Recommend around 500000 for passes that contain less than 5 million pairs
   # and 1000000 otherwise.
     0: 50000,

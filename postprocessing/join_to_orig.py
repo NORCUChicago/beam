@@ -61,20 +61,15 @@ if matchtype == "dedup":
     orig_ds_key = 'df_a'
     name_b = "dedup"
     xwalk_columns = [indv_id_a, "ch_id"]
-    # Create dictionary of wanted data types.
-    datatypes = {"ch_id": str, "orig_id": str}
 
 else:
     df_b_info = config["data_param"]["df_b"]
     name_b = df_b_info["name"]
     indv_id_b = df_b_info['vars']["indv_id"]
-    # Create dictionary of wanted data types.
-    datatypes = {"passnum": float}
     if matchtype == "M2M":
-        xwalk_columns = [indv_id_a, indv_id_b, "ch_id", "passnum"]
-        datatypes["ch_id"] = str
+        xwalk_columns = [indv_id_a, indv_id_b, "ch_id", "pass_name"]
     else:
-        xwalk_columns = [indv_id_a, indv_id_b, "passnum"]
+        xwalk_columns = [indv_id_a, indv_id_b, "pass_name"]
 
 xwalk_table = name_a + "_" + name_b + "_xwalk"
 
@@ -136,9 +131,9 @@ if database_config:
     column_types = " TEXT, ".join(xwalk_columns)
     columns_alone = ", ".join(xwalk_columns)
 
-    # Last column is numeric if pass number, otherwise TEXT
+    # Last column needs to be added as TEXT
     create_table = f'''CREATE TABLE IF NOT EXISTS {schema}.{xwalk_table} (
-    {column_types} {"TEXT" if xwalk_columns[-1] != "passnum" else "NUMERIC(2,1)"});'''
+    {column_types} "TEXT");'''
 
     # Create the crosswalk table.
     print(create_table, "\n")
